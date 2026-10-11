@@ -1,0 +1,388 @@
+// Student Accommodation System — Prisma schema
+// Run `npx prisma migrate dev --name init` after setting DATABASE_URL in .env
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Enums
+// ──────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  RESIDENT
+  ADMIN
+  SECURITY
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  DOCUMENTS_VERIFIED
+  APPROVED
+  REJECTED
+  ROOM_ASSIGNED
+}
+
+enum DocumentType {
+  STUDENT_ID
+  PROOF_OF_REGISTRATION
+  PROOF_OF_PAYMENT
+  OTHER
+}
+
+enum ChargeType {
+  ACCOMMODATION
+  ELECTRICITY
+  LAUNDRY
+  OTHER
+}
+
+enum ComplaintCategory {
+  PLUMBING
+  ELECTRICAL
+  LIFT
+  INTERNET
+  CLEANING
+  SECURITY
+  FURNITURE
+  NOISE
+  OTHER
+}
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ComplaintStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum VisitorStatus {
+  AWAITING_CHECKIN
+  CHECKED_IN
+  CHECKED_OUT
+  NO_SHOW
+}
+
+enum NotificationType {
+  APPLICATION
+  COMPLAINT
+  VISITOR
+  ANNOUNCEMENT
+  PAYMENT
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Identity
+// ──────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String @map("password_hash")
+  role         Role
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  resident Resident?
+
+  reviewedApplications Application[]     @relation("ApplicationReviewedBy")
+  recordedPayments     Payment[]         @relation("PaymentRecordedBy")
+  assignedComplaints   Complaint[]       @relation("ComplaintAssignedTo")
+  complaintNotes       ComplaintNote[]   @relation("ComplaintNoteAuthor")
+  checkedInVisitors    Visitor[]         @relation("VisitorCheckedInBy")
+  checkedOutVisitors   Visitor[]         @relation("VisitorCheckedOutBy")
+  incidentReports      IncidentReport[]  @relation("IncidentCreatedBy")
+  announcements        Announcement[]    @relation("AnnouncementCreatedBy")
+  auditLogs            AuditLog[]        @relation("AuditLogUser")
+  chargesAdded         AccountCharge[]   @relation("ChargeAddedBy")
+
+  @@map("users")
+}
+
+model Resident {
+  id            String  @id @default(uuid())
+  userId        String  @unique @map("user_id")
+  studentNumber String  @unique @map("student_number")
+  firstName     String  @map("first_name")
+  lastName      String  @map("last_name")
+  phone         String
+  course        String
+  school        String
+  bedId         String? @unique @map("bed_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bed           Bed?           @relation(fields: [bedId], references: [id])
+  applications  Application[]
+  charges       AccountCharge[]
+  payments      Payment[]
+  complaints    Complaint[]
+  visitors      Visitor[]
+  notifications Notification[]
+  incidentsAsHost IncidentReport[] @relation("IncidentResident")
+
+  @@map("residents")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Accommodation hierarchy: Building → Room → Bed
+// ──────────────────────────────────────────────────────────────────────────
+
+model Building {
+  id      String @id @default(uuid())
+  name    String
+  address String
+
+  rooms Room[]
+
+  @@map("buildings")
+}
+
+model Room {
+  id         String @id @default(uuid())
+  buildingId String @map("building_id")
+  roomNumber String @map("room_number")
+  floor      Int
+  capacity   Int
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  beds     Bed[]
+
+  @@map("rooms")
+}
+
+model Bed {
+  id     String @id @default(uuid())
+  roomId String @map("room_id")
+  label  String // 'A' / 'B' / 'C'
+
+  room     Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  resident Resident?
+  applications Application[]
+
+  @@unique([roomId, label])
+  @@map("beds")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Applications
+// ──────────────────────────────────────────────────────────────────────────
+
+model Application {
+  id         String            @id @default(uuid())
+  residentId String            @map("resident_id")
+  status     ApplicationStatus @default(SUBMITTED)
+  bedId      String?           @map("bed_id")
+  moveInDate DateTime?         @map("move_in_date")
+  buildingPreference String?   @map("building_preference")
+  roomTypePreference String?   @map("room_type_preference")
+  rejectionReason String?      @map("rejection_reason")
+
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  reviewedBy  String?   @map("reviewed_by")
+  reviewedAt  DateTime? @map("reviewed_at")
+
+  resident  Resident              @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  bed       Bed?                  @relation(fields: [bedId], references: [id])
+  reviewer  User?                 @relation("ApplicationReviewedBy", fields: [reviewedBy], references: [id])
+  documents ApplicationDocument[]
+
+  @@map("applications")
+}
+
+model ApplicationDocument {
+  id            String       @id @default(uuid())
+  applicationId String       @map("application_id")
+  type          DocumentType
+  fileUrl       String       @map("file_url")
+  fileName      String       @map("file_name")
+  uploadedAt    DateTime     @default(now()) @map("uploaded_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("application_documents")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Account / billing
+// ──────────────────────────────────────────────────────────────────────────
+
+model AccountCharge {
+  id         String     @id @default(uuid())
+  residentId String     @map("resident_id")
+  type       ChargeType
+  amount     Decimal    @db.Decimal(10, 2)
+  period     String // e.g. '2027-02'
+  createdAt  DateTime   @default(now()) @map("created_at")
+  addedBy    String?    @map("added_by")
+
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  addedByUser User? @relation("ChargeAddedBy", fields: [addedBy], references: [id])
+
+  @@map("account_charges")
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  residentId  String   @map("resident_id")
+  amount      Decimal  @db.Decimal(10, 2)
+  description String
+  paidAt      DateTime @default(now()) @map("paid_at")
+  recordedBy  String?  @map("recorded_by")
+
+  resident   Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  recordedByUser User? @relation("PaymentRecordedBy", fields: [recordedBy], references: [id])
+
+  @@map("payments")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Complaints
+// ──────────────────────────────────────────────────────────────────────────
+
+model Complaint {
+  id          String            @id // formatted COM-YYYY-NNNNN
+  residentId  String            @map("resident_id")
+  category    ComplaintCategory
+  title       String
+  description String
+  priority    ComplaintPriority @default(MEDIUM)
+  status      ComplaintStatus   @default(OPEN)
+  assignedTo  String?           @map("assigned_to")
+  photoUrl    String?           @map("photo_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  resident Resident        @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  assignee User?           @relation("ComplaintAssignedTo", fields: [assignedTo], references: [id])
+  notes    ComplaintNote[]
+
+  @@map("complaints")
+}
+
+model ComplaintNote {
+  id          String   @id @default(uuid())
+  complaintId String   @map("complaint_id")
+  authorId    String   @map("author_id")
+  note        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  author    User      @relation("ComplaintNoteAuthor", fields: [authorId], references: [id])
+
+  @@map("complaint_notes")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Visitors
+// ──────────────────────────────────────────────────────────────────────────
+
+model Visitor {
+  id             String        @id // formatted VIS-NNNNNN
+  residentId     String        @map("resident_id")
+  visitorName    String        @map("visitor_name")
+  phone          String
+  idNumber       String        @map("id_number") // encrypted at rest, see utils/crypto.ts
+  expectedDate   DateTime      @map("expected_date") @db.Date
+  expectedFrom   String        @map("expected_from") // 'HH:mm'
+  expectedUntil  String        @map("expected_until") // 'HH:mm'
+  purpose        String
+  status         VisitorStatus @default(AWAITING_CHECKIN)
+
+  checkedInAt  DateTime? @map("checked_in_at")
+  checkedInBy  String?   @map("checked_in_by")
+  checkedOutAt DateTime? @map("checked_out_at")
+  checkedOutBy String?   @map("checked_out_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  resident       Resident         @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  checkedInUser  User?            @relation("VisitorCheckedInBy", fields: [checkedInBy], references: [id])
+  checkedOutUser User?            @relation("VisitorCheckedOutBy", fields: [checkedOutBy], references: [id])
+  incidentReports IncidentReport[]
+
+  @@map("visitors")
+}
+
+// Separate from the audit trail so the trail cannot be contaminated by
+// investigation notes (see build guide, Phase 8).
+model IncidentReport {
+  id            String   @id @default(uuid())
+  visitorId     String?  @map("visitor_id")
+  residentId    String?  @map("resident_id") // the host
+  description   String
+  peopleInvolved String? @map("people_involved")
+  evidenceUrls  Json?    @map("evidence_urls") // string[] of uploaded file URLs
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  visitor  Visitor?  @relation(fields: [visitorId], references: [id])
+  resident Resident? @relation("IncidentResident", fields: [residentId], references: [id])
+  creator  User      @relation("IncidentCreatedBy", fields: [createdBy], references: [id])
+
+  @@map("incident_reports")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Audit trail — append only, nobody deletes from this table
+// ──────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String // e.g. ROOM_ASSIGNMENT_CHANGED, VISITOR_CHECKED_IN
+  targetType String   @map("target_type") // e.g. 'resident', 'visitor'
+  targetId   String?  @map("target_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation("AuditLogUser", fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Announcements & notifications
+// ──────────────────────────────────────────────────────────────────────────
+
+model Announcement {
+  id        String   @id @default(uuid())
+  title     String
+  body      String
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  creator User @relation("AnnouncementCreatedBy", fields: [createdBy], references: [id])
+
+  @@map("announcements")
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  residentId String           @map("resident_id")
+  type       NotificationType
+  message    String
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
