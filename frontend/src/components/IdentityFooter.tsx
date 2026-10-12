@@ -15,7 +15,7 @@ export function ResidentIdentityFooter({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-sm font-semibold text-white">
         {initials(firstName, lastName)}
       </div>
       <div className="min-w-0">
@@ -32,12 +32,14 @@ export function ResidentIdentityFooter({
 export function StaffIdentityFooter({ email, role }: { email: string; role: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-sm font-semibold text-white">
         {email[0]?.toUpperCase()}
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-gray-900">{email}</p>
-        <p className="truncate text-xs text-gray-400">{role === 'ADMIN' ? 'Accommodation staff' : 'Security officer'}</p>
+        <p className="truncate text-xs text-brand-600">
+          {role === 'ADMIN' ? 'Accommodation staff' : 'Security officer'}
+        </p>
       </div>
     </div>
   );

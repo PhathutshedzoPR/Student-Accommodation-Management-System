@@ -62,7 +62,8 @@ export default function ResidentDetail() {
 
       <div className="card p-6">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-lg font-semibold text-brand-700">
+          {/* Avatar: gradient to match sidebar identity footers */}
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-brand text-lg font-semibold text-white">
             {initials(resident.firstName, resident.lastName)}
           </div>
           <div>

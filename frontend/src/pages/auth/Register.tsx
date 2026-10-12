@@ -74,8 +74,7 @@ export default function Register() {
     if (!valid) return;
 
     // Account + student info are both collected before we actually create
-    // the account, right as the resident moves from step 2 to step 3 — from
-    // that point on they're a logged-in resident finishing their application.
+    // the account, right as the resident moves from step 2 to step 3.
     if (step === 2 && !accountCreated) {
       setSubmitting(true);
       try {
@@ -131,49 +130,99 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
-      <div className="w-full max-w-lg">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
-            <Building2 size={24} />
+      <div className="flex w-full max-w-4xl overflow-hidden rounded-2xl border border-gray-200 shadow-xl">
+
+        {/* ── Left: photo panel ── */}
+        <div className="relative hidden w-2/5 md:flex md:flex-col md:justify-between">
+          <img
+            src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=900&q=80"
+            alt="University campus"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          {/* Warm brand overlay */}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(to bottom right, #ee772460, #b4459360)' }}
+          />
+          {/* Caption */}
+          <div className="relative mt-auto p-8 text-white">
+            <h2 className="text-xl font-semibold leading-snug">
+              Start your<br />accommodation journey.
+            </h2>
+            <p className="mt-1 text-sm text-white/80">
+              Complete the 4-step application and our staff will review it promptly.
+            </p>
+            {/* Mini step indicator on the image */}
+            <div className="mt-5 flex gap-2">
+              {STEP_TITLES.map((_, i) => (
+                <div
+                  key={i}
+                  className={clsx(
+                    'h-1.5 flex-1 rounded-full transition-all',
+                    i + 1 <= step ? 'bg-white' : 'bg-white/30'
+                  )}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-white/60">
+              Step {step} of 4 — {STEP_TITLES[step - 1]}
+            </p>
           </div>
-          <h1 className="text-lg font-semibold text-gray-900">Apply for Accommodation</h1>
-          <p className="text-sm text-gray-500">Step {step} of 4 — {STEP_TITLES[step - 1]}</p>
         </div>
 
-        <Stepper step={step} />
-
-        <FormProvider {...methods}>
-          <form onSubmit={(e) => e.preventDefault()} className="card mt-5 space-y-4 p-6">
-            {serverError && <Alert tone="error">{serverError}</Alert>}
-
-            {step === 1 && <StepAccount />}
-            {step === 2 && <StepStudentInfo />}
-            {step === 3 && <StepAccommodation />}
-            {step === 4 && <StepDocuments docs={docs} setDocs={setDocs} />}
-
-            <div className="flex items-center justify-between pt-2">
-              <button type="button" onClick={back} disabled={step === 1 || submitting} className="btn-secondary disabled:invisible">
-                Back
-              </button>
-              {step < 4 ? (
-                <button type="button" onClick={next} disabled={submitting} className="btn-primary">
-                  {submitting ? 'Please wait…' : 'Next'}
-                </button>
-              ) : (
-                <button type="button" onClick={onFinalSubmit} disabled={submitting} className="btn-primary">
-                  {submitting ? 'Submitting…' : 'Submit Application'}
-                </button>
-              )}
+        {/* ── Right: wizard panel ── */}
+        <div className="flex w-full flex-col bg-white px-8 py-8 md:w-3/5">
+          {/* Header */}
+          <div className="mb-5 flex flex-col items-center text-center">
+            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-brand text-white">
+              <Building2 size={20} />
             </div>
-          </form>
-        </FormProvider>
+            <h1 className="text-base font-semibold text-gray-900">Apply for Accommodation</h1>
+          </div>
 
-        <p className="mt-4 text-center text-xs text-gray-400">
-          Already have an account?{' '}
-          <Link to="/login" className="font-medium text-brand-600 hover:underline">
-            Sign in
-          </Link>
-        </p>
+          {/* Stepper */}
+          <Stepper step={step} />
+
+          {/* Form */}
+          <FormProvider {...methods}>
+            <form onSubmit={(e) => e.preventDefault()} className="mt-5 space-y-4">
+              {serverError && <Alert tone="error">{serverError}</Alert>}
+
+              {step === 1 && <StepAccount />}
+              {step === 2 && <StepStudentInfo />}
+              {step === 3 && <StepAccommodation />}
+              {step === 4 && <StepDocuments docs={docs} setDocs={setDocs} />}
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={back}
+                  disabled={step === 1 || submitting}
+                  className="btn-secondary disabled:invisible"
+                >
+                  Back
+                </button>
+                {step < 4 ? (
+                  <button type="button" onClick={next} disabled={submitting} className="btn-primary">
+                    {submitting ? 'Please wait…' : 'Next'}
+                  </button>
+                ) : (
+                  <button type="button" onClick={onFinalSubmit} disabled={submitting} className="btn-primary">
+                    {submitting ? 'Submitting…' : 'Submit Application'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </FormProvider>
+
+          <p className="mt-5 text-center text-xs text-gray-400">
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-brand-600 hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+
       </div>
     </div>
   );
@@ -191,14 +240,16 @@ function Stepper({ step }: { step: number }) {
             <div
               className={clsx(
                 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-                done && 'bg-brand-600 text-white',
-                active && !done && 'bg-brand-100 text-brand-700 ring-2 ring-brand-600',
+                done && 'bg-gradient-brand text-white',
+                active && !done && 'bg-brand-50 text-brand-600 ring-2 ring-brand-500',
                 !done && !active && 'bg-gray-100 text-gray-400'
               )}
             >
               {done ? <Check size={14} /> : n}
             </div>
-            {n < STEP_TITLES.length && <div className={clsx('mx-1 h-0.5 flex-1', done ? 'bg-brand-600' : 'bg-gray-200')} />}
+            {n < STEP_TITLES.length && (
+              <div className={clsx('mx-1 h-0.5 flex-1', done ? 'bg-gradient-brand' : 'bg-gray-200')} />
+            )}
           </div>
         );
       })}
@@ -326,7 +377,7 @@ function StepDocuments({ docs, setDocs }: { docs: Doc[]; setDocs: (d: Doc[]) => 
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp,application/pdf"
-            className="input cursor-pointer file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200"
+            className="input cursor-pointer file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-600 hover:file:bg-brand-100"
             onChange={(e) => {
               const file = e.target.files?.[0] ?? null;
               const next = [...docs];
